@@ -1,0 +1,41 @@
+#!/bin/bash
+
+count=0
+
+function runTest() {
+	echo Running tests
+	adb -e shell am instrument -w com.docusign.ink.test/com.docusign.americano.JunitInstrumentationTestRunner | grep OK
+}
+
+function checkDone() {
+	adb -e shell getprop dev.bootcomplete 2>&1 | grep 1 >/dev/null
+}
+
+function resetEmu() {
+	echo Killing emulator
+	adb -e emu kill >/dev/null 2>&1
+	sleep 5
+	echo Resetting files
+	rm -rf ~/.android/avd/hudson_en-US_320_720x1280_android-18_x86.* >/dev/null 2>&1
+	cp ~/.android/avd/jenk_bak.ini ~/.android/avd/hudson_en-US_320_720x1280_android-18_x86.ini
+	cp -R ~/.android/avd/jenk_bak ~/.android/avd/hudson_en-US_320_720x1280_android-18_x86.avd
+	echo Starting emulator
+	emulator -no-boot-anim -prop persist.sys.language=en -prop persist.sys.country=US -avd hudson_en-US_320_720x1280_android-18_x86 -no-snapshot-load -no-snapshot-save >/dev/null 2>&1 &
+	echo Waiting for emu to come online
+	while ! checkDone
+	do
+		adb kill-server
+		sleep 1
+	done
+	echo Installing Ink
+	adb -e install Ink/build/outputs/apk/docusign-dev-0-google-debug-unaligned.apk
+	echo Installing Tests
+	adb -e install Ink/build/outputs/apk/docusign-dev-0-google-debug-test-unaligned.apk
+}
+
+while resetEmu && runTest
+do 
+	echo $((++count))
+done
+
+echo $((++count)) runs until failure
